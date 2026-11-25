@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crop Atlas</title>
+
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/cesium@1.121.0/Build/Cesium/Widgets/widgets.css"
+  >
+
+  <style>
+    :root {
+      color-scheme: dark;
+      --background: #101a18;
+      --panel: #172420;
+      --card: #20312b;
+      --border: #354a40;
+      --text: #f0f5ef;
+      --muted: #b3c3b7;
+      --accent: #c4e99d;
+      --good: #b6e59b;
+      --warning: #ffda8b;
+      --bad: #ffb19f;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      background: var(--background);
+      color: var(--text);
+      font: 15px/1.5 system-ui, sans-serif;
+    }
+
+    button, input, select { font: inherit; }
+
+    button {
+      cursor: pointer;
+      color: var(--text);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 12px;
+      transition: border-color .15s ease, background .15s ease;
+    }
+
+    button:hover { border-color: var(--accent); }
+
+    button:disabled {
+      opacity: .5;
+      cursor: default;
+    }
+
+    :focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    input, select {
+      width: 100%;
+      min-width: 0;
+      color: var(--text);
+      background: #13201b;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    a { color: var(--accent); }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h2 {
+      font-size: 21px;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+    }
+
+    h3 { font-size: 16px; }
+
+    small, .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    [hidden] { display: none !important; }
+
+    header {
+      flex-shrink: 0;
+      min-height: 58px;
+      padding: 8px 14px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      position: relative;
+      z-index: 40;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 19px;
+      letter-spacing: -.4px;
+      white-space: nowrap;
+    }
+
+    main {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 245px minmax(0, 1fr) 340px;
+      overflow: hidden;
+    }
+
+    .explorer-pane {
+      min-height: 0;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background: var(--panel);
+    }
+
+    .explorer-pane.pane-dragging {
+      opacity: 0.45;
+      outline: 2px dashed var(--accent);
+      outline-offset: -3px;
+    }
+
+    .explorer-pane.pane-drop-target {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+      box-shadow: inset 0 0 0 2px rgba(196, 233, 157, .35);
+    }
+
+    .pane-header {
+      flex-shrink: 0;
+      height: 36px;
+      padding: 0 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: #13201b;
+      border-bottom: 1px solid var(--border);
+      user-select: none;
+      cursor: grab;
+    }
+
+    .pane-header:active { cursor: grabbing; }
+
+    .pane-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .3px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pane-grip {
+      color: var(--accent);
+      font-size: 13px;
+      letter-spacing: -1px;
+    }
+
+    .pane-move-controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .pane-move-controls button {
+      padding: 2px 7px;
+      font-size: 11px;
+      line-height: 1.4;
+      border-radius: 6px;
+      background: var(--card);
+    }
+
+    .library {
+      min-height: 0;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+    }
+
+    .library-body {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      gap: 10px;
+      overflow: hidden;
+    }
+
+    .library h2 { margin: 0; }
+
+    #cropPreview {
+      height: 78px;
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      font-size: 45px;
+      background: var(--card);
+      border-radius: 12px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 5px;
+    }
+
+    .tabs button {
+      flex: 1;
+      padding: 7px 4px;
+      font-size: 12px;
+    }
+
+    .tabs button.active,
+    .map-controls button.active {
+      color: #132016;
+      background: var(--accent);
+    }
+
+    #cropList {
+      overflow-y: auto;
+      min-height: 0;
+      flex: 1;
+      overscroll-behavior: contain;
+    }
+
+    .crop-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 7px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+    }
+
+    .crop-row.selected {
+      border-color: var(--accent);
+      background: #2b4033;
+    }
+
+    .crop-select {
+      flex: 1;
+      min-width: 0;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      padding: 9px;
+    }
+
+    .crop-select span,
+    .crop-select small {
+      display: block;
+      overflow-wrap: anywhere;
+    }
+
+    .crop-select small {
+      margin-top: 3px;
+      font-style: italic;
+      font-size: 11px;
+    }
+
+    .bookmark {
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      padding: 8px;
+      font-size: 21px;
+    }
+
+    .map-area {
+      position: relative;
+      overflow: hidden;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background: #03070d;
+    }
+
+    .map-stage {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    #globe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    #globe .cesium-widget,
+    #globe .cesium-widget canvas,
+    #globe .cesium-viewer,
+    #globe .cesium-viewer-cesiumWidgetContainer {
+      width: 100%;
+      height: 100%;
+    }
+
+    .search-area {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: 68px;
+      z-index: 10;
+    }
+
+    #locationSearch {
+      background: rgba(23, 36, 32, .96);
+      box-shadow: 0 5px 20px #0005;
+    }
+
+    #searchResults:not(:empty) {
+      margin-top: 6px;
+      background: #172420;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      max-height: min(250px, 45vh);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      box-shadow: 0 8px 24px #0006;
+    }
+
+    .search-result {
+      display: block;
+      width: 100%;
+      height: 50px;
+      border: 0;
+      border-bottom: 1px solid var(--border);
+      border-radius: 0;
+      background: transparent;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .search-message { padding: 12px; margin: 0; }
+
+    .map-controls {
+      position: absolute;
+      top: 14px;
+      right: 12px;
+      display: grid;
+      gap: 7px;
+      z-index: 11;
+    }
+
+    .map-controls button {
+      width: 43px;
+      height: 43px;
+      padding: 0;
+      font-size: 23px;
+      background: rgba(23, 36, 32, .96);
+    }
+
+    .map-hint {
+      position: absolute;
+      bottom: 34px;
+      left: 12px;
+      right: 12px;
+      pointer-events: none;
+      font-size: 11px;
+      color: #ecf3ef;
+      text-shadow: 0 1px 4px #000;
+    }
+
+    #mapMessage {
+      position: absolute;
+      bottom: 72px;
+      left: 12px;
+      right: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #172420ed;
+      font-size: 13px;
+      z-index: 12;
+    }
+
+    .mobile-inspect-jump {
+      display: none;
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 14;
+      box-shadow: 0 8px 22px rgba(0, 0, 0, .55);
+      white-space: nowrap;
+    }
+
+    .inspector {
+      min-height: 0;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .inspector-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 16px 16px 24px;
+      overscroll-behavior: contain;
+    }
+
+    .eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 7px;
+    }
+
+    #locationName { margin-bottom: 6px; }
+
+    #locationCoordinates { font-size: 12px; }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 20px 0;
+    }
+
+    #selectedCropName { margin-bottom: 4px; }
+
+    #selectedScientific {
+      display: block;
+      font-style: italic;
+      margin-bottom: 14px;
+    }
+
+    .badge {
+      display: block;
+      border-radius: 9px;
+      padding: 10px 12px;
+      background: #ffffff08;
+      font-size: 13px;
+      font-weight: 650;
+      margin-bottom: 14px;
+    }
+
+    .good { color: var(--good); }
+    .warning { color: var(--warning); }
+    .bad { color: var(--bad); }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    #climateMonth { margin-bottom: 12px; }
+
+    .metric-card {
+      padding: 14px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      border-radius: 12px;
+      margin-bottom: 12px;
+    }
+
+    .metric-title { font-size: 13px; color: var(--muted); }
+
+    .metric-value {
+      margin: 4px 0;
+      font-size: 27px;
+      font-weight: 700;
+      letter-spacing: -.7px;
+    }
+
+    .metric-status {
+      margin: 6px 0 10px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .metric-range {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    details {
+      margin: 12px 0;
+      font-size: 13px;
+    }
+
+    summary {
+      cursor: pointer;
+      padding: 8px 0;
+      font-weight: 600;
+    }
+
+    details p { margin-top: 10px; }
+
+    .primary {
+      color: #172315;
+      background: var(--accent);
+      border-color: var(--accent);
+      font-weight: 700;
+    }
+
+    .inspector-scroll > .primary,
+    .admin-box > .primary,
+    dialog .field-card > .primary {
+      width: 100%;
+      margin-top: 4px;
+    }
+
+    .suggestion {
+      display: block;
+      width: 100%;
+      text-align: left;
+      margin: 8px 0;
+      padding: 11px;
+    }
+
+    .suggestion strong,
+    .suggestion small { display: block; }
+
+    .suggestion small { margin-top: 3px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    th, td {
+      text-align: right;
+      padding: 7px 3px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th:first-child, td:first-child { text-align: left; }
+
+    dialog {
+      width: min(700px, calc(100vw - 28px));
+      max-height: 88dvh;
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--panel);
+      color: var(--text);
+      overflow-y: auto;
+    }
+
+    dialog::backdrop { background: #000a; }
+
+    .dialog-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 16px;
+    }
+
+    .dialog-top h2 { margin-bottom: 5px; }
+
+    #profilePhoto {
+      width: 100%;
+      height: 260px;
+      object-fit: cover;
+      border-radius: 12px;
+      margin-top: 18px;
+    }
+
+    #profileIcon {
+      display: grid;
+      place-items: center;
+      height: 150px;
+      font-size: 75px;
+    }
+
+    #photoCredit {
+      margin: 8px 0 20px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .requirements {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .requirement {
+      padding: 12px;
+      border-radius: 10px;
+      background: var(--card);
+    }
+
+    .requirement span,
+    .requirement strong { display: block; }
+
+    .requirement span {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+
+    #profileContent h3 { margin-top: 24px; }
+
+    /* --- Production Top Bar, Dashboard, Autosave, Error Banner & Admin Styles --- */
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      flex-shrink: 0;
+    }
+    .header-brand small {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .header-nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-width: 0;
+      padding: 2px 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .header-nav::-webkit-scrollbar { display: none; }
+    .header-meta {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .header-nav button,
+    .header-meta button {
+      padding: 6px 10px;
+      font-size: 13px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .header-nav button.active-view {
+      color: #132016;
+      background: var(--accent);
+      border-color: var(--accent);
+      font-weight: 700;
+    }
+    .mobile-menu-btn {
+      display: none;
+      padding: 6px 10px;
+      font-size: 16px;
+      line-height: 1;
+    }
+    .mobile-nav-drawer {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 14px;
+      display: grid;
+      gap: 8px;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, .55);
+      z-index: 60;
+    }
+    .mobile-nav-drawer button {
+      width: 100%;
+      text-align: left;
+      padding: 11px 14px;
+      font-size: 14px;
+    }
+    .mobile-bottom-nav {
+      display: none;
+      flex-shrink: 0;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      z-index: 35;
+    }
+    .mobile-bottom-nav button {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      padding: 7px 4px;
+      font-size: 11px;
+      border-radius: 10px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--muted);
+    }
+    .mobile-bottom-nav button span.nav-ico {
+      font-size: 17px;
+      line-height: 1.1;
+    }
+    .mobile-bottom-nav button.active-mobile-tab {
+      color: #132016;
+      background: var(--accent);
+      border-color: var(--accent);
+      font-weight: 700;
+    }
+    .role-pill,
+    .autosave-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--card);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .role-pill[data-role="admin"],
+    .role-pill[data-role="dev"] {
+      color: #132016;
+      background: var(--good);
+      border-color: var(--good);
+    }
+    .role-pill[data-role="user"] {
+      color: #132016;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .role-pill[data-role="guest"] {
+      color: var(--warning);
+      border-color: var(--warning);
+    }
+    .autosave-pill[data-status="saved"] {
+      color: var(--good);
+      border-color: #466843;
+      background: #182b1d;
+    }
+    .autosave-pill[data-status="saving"] {
+      color: var(--warning);
+      border-color: #7a6331;
+      background: #2b2414;
+    }
+    .autosave-pill[data-status="offline"],
+    .autosave-pill[data-status="error"] {
+      color: var(--bad);
+      border-color: #7c4238;
+      background: #2d1916;
+      cursor: pointer;
+    }
+    .notification-region {
+      position: fixed;
+      top: 72px;
+      right: 18px;
+      z-index: 9999;
+      display: grid;
+      gap: 8px;
+      max-width: 410px;
+      width: calc(100vw - 36px);
+      pointer-events: none;
+    }
+    .user-toast {
+      pointer-events: auto;
+      background: #1b2c26;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 12px;
+      padding: 12px 14px;
+      box-shadow: 0 10px 26px rgba(0, 0, 0, .45);
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+    }
+    .user-toast[data-type="error"] {
+      border-left-color: var(--bad);
+      background: #281816;
+    }
+    .user-toast[data-type="warning"] {
+      border-left-color: var(--warning);
+      background: #282214;
+    }
+    .user-toast-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .user-toast-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .user-toast-actions button {
+      padding: 4px 10px;
+      font-size: 12px;
+    }
+    .db-source-tag {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: #13201b;
+      border: 1px solid var(--border);
+      color: var(--accent);
+    }
+    .field-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      margin-top: 8px;
+      display: grid;
+      gap: 8px;
+    }
+    .field-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .admin-workspace,
+    .dashboard-workspace {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 20px;
+      background: var(--background);
+      overscroll-behavior: contain;
+    }
+    .admin-container,
+    .dashboard-container {
+      max-width: 1220px;
+      margin: 0 auto;
+      display: grid;
+      gap: 20px;
+    }
+    .workflow-steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 12px;
+    }
+    .workflow-step-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 15px;
+      display: grid;
+      gap: 8px;
+      align-content: space-between;
+    }
+    .workflow-step-card:hover {
+      border-color: var(--accent);
+    }
+    .dashboard-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .dash-item-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .admin-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+      gap: 10px;
+    }
+    .admin-stat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+    .admin-stat-card strong {
+      display: block;
+      font-size: 24px;
+      color: var(--accent);
+    }
+    .admin-panel-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 18px;
+    }
+    .admin-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+    .admin-table-wrap {
+      overflow-x: auto;
+      max-height: 320px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .admin-table th,
+    .admin-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: middle;
+    }
+    .admin-table th {
+      background: #13201b;
+      position: sticky;
+      top: 0;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    /* --- Comprehensive Tablet & Mobile Responsive Breakpoints --- */
+    @media (max-width: 1240px) {
+      .header-brand small { display: none; }
+    }
+
+    @media (max-width: 1024px) {
+      main {
+        grid-template-columns: 205px minmax(0, 1fr) 295px;
+      }
+      .header-nav button,
+      .header-meta button {
+        padding: 6px 8px;
+        font-size: 12px;
+      }
+      .role-pill { display: none; }
+    }
+
+    @media (max-width: 860px) {
+      header {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 12px;
+        min-height: 54px;
+      }
+      .header-nav { display: none; }
+      .role-pill { display: none; }
+      .mobile-menu-btn { display: inline-flex; align-items: center; justify-content: center; }
+
+      .mobile-bottom-nav { display: grid; }
+
+      main#explorerWorkspace {
+        display: flex;
+        flex-direction: column;
+        grid-template-columns: none !important;
+      }
+
+      .pane-header { display: none; }
+
+      .explorer-pane {
+        display: none;
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+        border: 0 !important;
+      }
+
+      .explorer-pane.mobile-active-pane {
+        display: flex;
+      }
+
+      .mobile-inspect-jump.visible {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .map-hint { display: none; }
+
+      .admin-workspace,
+      .dashboard-workspace {
+        padding: 14px;
+      }
+
+      .admin-panel-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .notification-region {
+        top: 62px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+        max-width: none;
+      }
+
+      dialog {
+        width: calc(100vw - 16px);
+        max-height: 90dvh;
+        padding: 16px;
+        border-radius: 14px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      header h1 { font-size: 17px; }
+      .autosave-pill { font-size: 11px; padding: 3px 7px; }
+      .field-grid-2 { grid-template-columns: 1fr; }
+      .requirements { grid-template-columns: 1fr; }
+      .workflow-steps-grid,
+      .dashboard-cards-grid { grid-template-columns: 1fr; }
+      .admin-stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+  <script>
+    window.CESIUM_BASE_URL =
+      "https://cdn.jsdelivr.net/npm/cesium@1.121.0/Build/Cesium/";
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/cesium@1.121.0/Build/Cesium/Cesium.js"></script>
+</head>
+
+<body>
+  <header style="display:flex; justify-content:space-between;">
+    <div class="header-brand">
+      <h1>🌱 Crop Atlas</h1>
+      <small>Explore the Earth. Understand growing conditions.</small>
+    </div>
+    <div class="header-meta">
+      <button id="standalonePlanBtn" type="button" onclick="document.getElementById('openRotation').click()">
+        🌱 Plan Next Crop
+      </button>
+    </div>
+  </header>
+
+  <div id="userNotificationRegion" class="notification-region" aria-live="polite"></div>
+
+  
+
+  <main id="explorerWorkspace">
+    <aside class="library explorer-pane" data-pane="library" aria-label="Crop library">
+      <div class="pane-header" draggable="true" data-drag-pane="library" title="Drag or use arrows to rearrange window">
+        <span class="pane-title"><span class="pane-grip">⋮⋮</span> 🌿 Crop Library</span>
+        <span class="pane-move-controls">
+          <button type="button" data-move-pane="library" data-dir="-1" aria-label="Move Crop Library left" title="Move left">◀</button>
+          <button type="button" data-move-pane="library" data-dir="1" aria-label="Move Crop Library right" title="Move right">▶</button>
+        </span>
+      </div>
+      <div class="library-body">
+        <div id="cropPreview">🌱</div>
+        <h2>Crop library</h2>
+
+        <input
+          id="cropSearch"
+          type="search"
+          placeholder="Search crops…"
+          aria-label="Search crops"
+        >
+
+        <div class="tabs" aria-label="Library filters">
+          <button data-tab="all" class="active">All</button>
+          <button data-tab="saved">Saved</button>
+          <button data-tab="recent">Recent</button>
+        </div>
+
+        <small id="catalogStatus" role="status">Loading crops…</small>
+        <div id="cropList"></div>
+      </div>
+    </aside>
+
+    <section class="map-area explorer-pane mobile-active-pane" data-pane="map" aria-label="Interactive Earth">
+      <div class="pane-header" draggable="true" data-drag-pane="map" title="Drag or use arrows to rearrange window">
+        <span class="pane-title"><span class="pane-grip">⋮⋮</span> 🌍 3D Earth Globe</span>
+        <span class="pane-move-controls">
+          <button type="button" data-move-pane="map" data-dir="-1" aria-label="Move 3D Globe left" title="Move left">◀</button>
+          <button type="button" data-move-pane="map" data-dir="1" aria-label="Move 3D Globe right" title="Move right">▶</button>
+          <button type="button" id="resetPaneLayoutBtn" aria-label="Reset 3-window layout" title="Reset default window order">↺</button>
+        </span>
+      </div>
+      <div class="map-stage">
+        <div id="globe"></div>
+
+        <div class="search-area">
+          <input
+            id="locationSearch"
+            type="search"
+            placeholder="Search address, restaurant, farm or landmark…"
+            aria-label="Search locations"
+            autocomplete="off"
+          >
+          <div id="searchResults"></div>
+        </div>
+
+        <div class="map-controls">
+          <button id="homeButton" title="Return to Earth" aria-label="Home">⌂</button>
+          <button id="zoomInButton" title="Zoom in" aria-label="Zoom in">+</button>
+          <button id="zoomOutButton" title="Zoom out" aria-label="Zoom out">−</button>
+          <button
+            id="terrainButton"
+            title="Toggle 3D terrain"
+            aria-label="Toggle 3D terrain"
+            aria-pressed="false"
+          >⛰</button>
+        </div>
+
+        <div id="mapMessage" role="status" hidden></div>
+
+        <button id="mobileInspectJumpBtn" class="primary mobile-inspect-jump" type="button">
+          📍 Inspect this location ➔
+        </button>
+
+        <div class="map-hint">
+          Drag: move · Scroll: zoom · Hold right mouse + drag: tilt · Click: inspect
+        </div>
+      </div>
+    </section>
+
+    <aside class="inspector explorer-pane" data-pane="inspector" aria-label="Location and crop information">
+      <div class="pane-header" draggable="true" data-drag-pane="inspector" title="Drag or use arrows to rearrange window">
+        <span class="pane-title"><span class="pane-grip">⋮⋮</span> 📍 Site & Crop Inspector</span>
+        <span class="pane-move-controls">
+          <button type="button" data-move-pane="inspector" data-dir="-1" aria-label="Move Inspector left" title="Move left">◀</button>
+          <button type="button" data-move-pane="inspector" data-dir="1" aria-label="Move Inspector right" title="Move right">▶</button>
+        </span>
+      </div>
+      <div class="inspector-scroll">
+      <div class="eyebrow">Selected location</div>
+      <h2 id="locationName">Choose a place</h2>
+      <p id="locationCoordinates" class="muted">
+        Click the Earth or search for a town.
+      </p>
+      
+
+      <div class="divider"></div>
+
+      <h2 id="selectedCropName">Choose a crop</h2>
+      <small id="selectedScientific">Select one from the library.</small>
+
+      <div id="climateMatch" class="badge">Choose crop + location</div>
+
+      <label for="climateMonth">Compare temperature for</label>
+      <select id="climateMonth">
+        <option value="ANN">Annual average</option>
+        <option value="JAN">January</option>
+        <option value="FEB">February</option>
+        <option value="MAR">March</option>
+        <option value="APR">April</option>
+        <option value="MAY">May</option>
+        <option value="JUN">June</option>
+        <option value="JUL">July</option>
+        <option value="AUG">August</option>
+        <option value="SEP">September</option>
+        <option value="OCT">October</option>
+        <option value="NOV">November</option>
+        <option value="DEC">December</option>
+      </select>
+
+      <div id="assessment">
+        Select a crop and location to compare their climate ranges.
+      </div>
+
+      <p id="nasaStatus" class="note" role="status">
+        Climate source: NASA POWER.
+      </p>
+      <button id="retryClimate" hidden>Retry climate data</button>
+<details open>
+  <summary>🪨 Soil at this location</summary>
+
+  <p class="note">
+    Mapped estimates · surface layer, 0–5 cm.
+    These are not measurements from your field.
+  </p>
+
+  <div id="soilAssessment">
+    Click a location to load soil estimates.
+  </div>
+
+  <button id="retrySoil" type="button" hidden>
+    Retry soil data
+  </button>
+
+  <p id="soilSource" class="note"></p>
+
+  <details>
+    <summary>About these soil estimates</summary>
+
+    <p class="note">
+      Source: ISRIC SoilGrids, approximately 250 m resolution.
+      Local soil conditions can differ from the mapped estimate.
+      Soil testing is needed for field-level decisions.
+    </p>
+
+    <p class="note">
+      The depth shown is the sampled map layer—not the total soil
+      depth. Drainage is not supplied by this lookup.
+      Crop suggestions remain climate-based in this version.
+    </p>
+
+    <a
+      href="https://docs.isric.org/globaldata/soilgrids/"
+      target="_blank"
+      rel="noopener"
+    >SoilGrids documentation ↗</a>
+  </details>
+</details>
+      <button id="cropDetailsButton" class="primary" disabled>
+        Explore this crop ↗
+      </button>
+
+      <div class="divider"></div>
+<button id="openRotation" class="primary">
+  🌱 Plan my next crop
+</button>
+
+<div class="divider"></div>
+      <h3>Crops to explore here</h3>
+      <p class="note">
+        Climate-based suggestions, not field suitability or rotation advice.
+      </p>
+      <div id="recommendations" style="
+  max-height: 500px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+">
+        <p class="muted">Click a location to see suggestions.</p>
+      </div>
+
+      <details>
+        <summary>Monthly climate averages</summary>
+        <table>
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>°C</th>
+              <th>Rain mm*</th>
+            </tr>
+          </thead>
+          <tbody id="monthlyRows"></tbody>
+        </table>
+        <p class="note">
+          *Approximate monthly total from NASA’s average daily precipitation.
+        </p>
+      </details>
+
+      <details>
+        <summary>Sources & how this works</summary>
+        <p>
+          NASA POWER provides climate averages. Crop reference ranges come
+          from FAO EcoCrop through the OpenCLIM database mirror.
+        </p>
+        <p>
+          The comparison checks temperature and annual precipitation only.
+          It does not measure your field’s soil or predict harvests.
+          Seasonal rainfall, irrigation, extreme weather, and crop variety
+          can change the outcome.
+        </p>
+        <p>
+          The month selector changes temperature only. Annual rainfall stays
+          annual. Climate data represents an area around the point, not an
+          individual field.
+        </p>
+        <p>
+          Satellite imagery and terrain: Esri and its contributors.
+          Location search: Open-Meteo / GeoNames.
+          Reference photographs: Wikimedia Commons, credited individually.
+        </p>
+        <p>
+          <a href="https://power.larc.nasa.gov/" target="_blank" rel="noopener">
+            NASA POWER
+          </a>
+          ·
+          <a
+            href="https://github.com/OpenCLIM/ecocrop"
+            target="_blank"
+            rel="noopener"
+          >EcoCrop mirror</a>
+        </p>
+      </details>
+      </div>
+    </aside>
+  </main>
+<dialog id="rotationDialog">
+  <div class="dialog-top">
+    <div>
+      <h2>🌱 Plan my next crop</h2>
+      <p class="note">
+        Explore possible crops using this location’s available data.
+      </p>
+    </div>
+
+    <form method="dialog">
+      <button aria-label="Close rotation planner">✕</button>
+    </form>
+  </div>
+
+  <p id="rotationLocation" class="muted"></p>
+
+  
+
+  <label for="previousCropSearch">What grew here previously?</label>
+
+<input
+  id="previousCropSearch"
+  type="search"
+  placeholder="Search crops, e.g. rice, maize…"
+  autocomplete="off"
+>
+
+<p class="note" style="margin:6px 0;">
+  Select all relevant crops for this field.
+  Assess separate fields individually.
+</p>
+
+<div id="previousCropTags" style="
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin:10px 0;
+"></div>
+
+<div id="previousCropMatches" style="
+  max-height:230px;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+"></div>
+
+<p id="previousCropHint" class="note" role="status"></p>
+
+<!-- Retained for compatibility with the existing open-panel code. -->
+<select id="previousCrop" hidden aria-hidden="true" tabindex="-1">
+  <option value="">Unknown / no previous crop</option>
+</select>
+
+  <label for="plantingMonth" style="margin-top:14px;">
+    Intended planting month
+  </label>
+  <select id="plantingMonth">
+    <option value="">Not decided</option>
+    <option value="JAN">January</option>
+    <option value="FEB">February</option>
+    <option value="MAR">March</option>
+    <option value="APR">April</option>
+    <option value="MAY">May</option>
+    <option value="JUN">June</option>
+    <option value="JUL">July</option>
+    <option value="AUG">August</option>
+    <option value="SEP">September</option>
+    <option value="OCT">October</option>
+    <option value="NOV">November</option>
+    <option value="DEC">December</option>
+  </select>
+
+  <label for="waterSupply" style="margin-top:14px;">
+    Water supply
+  </label>
+  <select id="waterSupply">
+    <option value="unknown">Not sure</option>
+    <option value="rain">Rain only</option>
+    <option value="irrigation">Irrigation available</option>
+  </select>
+
+  <label for="farmerPriority" style="margin-top:14px;">
+    Main priority
+  </label>
+  <select id="farmerPriority">
+    <option value="explore">Explore options</option>
+    <option value="water">Save water</option>
+    <option value="soil">Improve soil</option>
+    <option value="diversify">Diversify crops</option>
+  </select>
+
+  <button id="compareRotation" class="primary">
+    Explore next crops
+  </button>
+
+  <p class="note" style="margin-top:12px;">
+    This prototype does not yet calculate planting calendars,
+    irrigation requirements, soil improvement, or pest-safe rotations.
+    Water supply and priorities are recorded as context only.
+  </p>
+
+  <div
+  id="rotationResults"
+  aria-live="polite"
+  style="
+    max-height: 500px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin-top: 16px;
+    padding-right: 6px;
+  "
+></div>
+</dialog>
+  <dialog id="cropDialog">
+    <div class="dialog-top">
+      <div>
+        <h2 id="profileName"></h2>
+        <small id="profileScientific"></small>
+      </div>
+      <form method="dialog">
+        <button aria-label="Close crop details">✕</button>
+      </form>
+    </div>
+
+    <div id="profileIcon"></div>
+    <img id="profilePhoto" alt="" hidden>
+    <p id="photoCredit"></p>
+    <div id="profileContent"></div>
+  </dialog>
+
+    <!-- ===================================================================== -->
+  <!-- MOBILE STICKY BOTTOM NAVIGATION BAR (<= 860px)                        -->
+  <!-- ===================================================================== -->
+  <nav id="mobileBottomNav" class="mobile-bottom-nav" aria-label="Mobile navigation" style="grid-template-columns: repeat(3, 1fr);">
+    <button type="button" data-mobile-tab="library">
+      <span class="nav-ico">🌿</span>
+      <span>Crops</span>
+    </button>
+    <button type="button" data-mobile-tab="map" class="active-mobile-tab">
+      <span class="nav-ico">🌍</span>
+      <span>Globe</span>
+    </button>
+    <button type="button" data-mobile-tab="inspector">
+      <span class="nav-ico">📍</span>
+      <span>Inspect</span>
+    </button>
+  </nav>
+
+  <script src="./app.js"></script>
+</body>
+</html>
